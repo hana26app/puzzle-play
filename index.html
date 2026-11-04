@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧩 퍼즐놀이 🧩</title>
+    <!-- Tailwind CSS 로드 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation; /* 모바일 터치 최적화 */
+            user-select: none; /* 텍스트 선택 방지 */
+        }
+        
+        /* 커스텀 애니메이션 */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        /* 캔버스 포인터 이벤트 무시 */
+        canvas {
+            pointer-events: none;
+        }
+
+        /* 숨김 처리용 유틸리티 */
+        .hidden-screen {
+            display: none !important;
+        }
+
+        /* 16:9 화면 맞춤 완벽 반응형 (전자칠판/태블릿/스마트폰 대응) */
+        .responsive-app {
+            aspect-ratio: 16 / 9;
+            width: 100%;
+            /* 화면 세로가 짧을 때(전자칠판/PC) 가로 너비를 제한하여 화면 밖으로 나가는 것을 방지 */
+            max-width: min(1200px, calc((100dvh - 2rem) * 16 / 9));
+            /* 화면 가로가 좁을 때(스마트폰/태블릿 세로) 높이를 제한 */
+            max-height: calc((100vw - 2rem) * 9 / 16);
+            margin: auto;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center w-full h-[100dvh] bg-sky-100 p-2 sm:p-4 overflow-hidden">
+
+    <!-- 16:9 비율 컨테이너 (전자칠판/태블릿 최적화) -->
+    <div class="responsive-app bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden relative flex flex-col border-4 border-white">
+        
+        <!-- 상단 헤더 바 -->
+        <header class="bg-sky-400 text-white p-3 sm:p-4 flex justify-between items-center shadow-md z-10 shrink-0">
+            <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight">🧩 퍼즐놀이 🧩</h1>
+            <div id="header-controls" class="flex items-center gap-2 sm:gap-6 hidden-screen">
+                <div id="timer-display" class="text-xl sm:text-3xl font-bold px-3 py-1 sm:px-4 sm:py-2 rounded-xl bg-white/20 hidden-screen">
+                    ⏳ 0:00
+                </div>
+                <button onclick="goHome()" class="bg-sky-600 hover:bg-sky-700 transition-colors px-3 py-2 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-xl font-bold shadow-sm whitespace-nowrap">
+                    처음으로
+                </button>
+            </div>
+        </header>
+
+        <!-- 메인 콘텐츠 영역 -->
+        <main class="flex-1 relative flex items-center justify-center bg-sky-50 overflow-hidden min-h-0">
+            
+            <!-- 1. 설정 화면 (MENU) -->
+            <div id="screen-menu" class="w-full h-full flex flex-col sm:flex-row p-3 sm:p-6 gap-3 sm:gap-6 animate-fade-in min-h-0">
+                
+                <!-- 왼쪽: 이미지 선택 영역 -->
+                <div class="flex-1 flex flex-col bg-white p-3 sm:p-6 rounded-xl sm:rounded-2xl shadow-sm border border-sky-100 min-h-0">
+                    <h2 class="text-lg sm:text-2xl font-bold text-sky-800 mb-2 sm:mb-4 flex items-center gap-2 shrink-0">
+                        <span>1. 놀이할 사진을 올려주세요</span>
+                    </h2>
+                    <!-- 4개 슬롯 배치 (2x2) -->
+                    <div id="slot-container" class="grid grid-cols-2 gap-2 sm:gap-3 flex-1 overflow-y-auto min-h-0 p-1">
+                        <!-- JS로 동적 생성됨 -->
+                    </div>
+                </div>
+
+                <!-- 오른쪽: 난이도 설정 영역 -->
+                <div class="flex-1 flex flex-col bg-white p-3 sm:p-5 rounded-xl sm:rounded-2xl shadow-sm border border-sky-100 min-h-0">
+                    <h2 class="text-base sm:text-xl font-bold text-sky-800 mb-2 sm:mb-3 shrink-0">2. 퍼즐 조각과 시간을 정해주세요</h2>
+                    
+                    <div class="space-y-2 sm:space-y-4 flex-1 flex flex-col justify-center min-h-0 overflow-y-auto p-1">
+                        <div>
+                            <h3 class="text-xs sm:text-base font-bold text-gray-600 mb-1 sm:mb-2">🧩 퍼즐 조각 수</h3>
+                            <div id="grid-options" class="grid grid-cols-3 gap-1 sm:gap-2">
+                                <!-- JS로 동적 생성됨 -->
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 class="text-xs sm:text-base font-bold text-gray-600 mb-1 sm:mb-2">⏰ 제한 시간</h3>
+                            <div id="time-options" class="grid grid-cols-4 gap-1 sm:gap-2">
+                                <!-- JS로 동적 생성됨 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 시작 버튼 -->
+                    <button id="start-btn" onclick="startGame()" disabled class="w-full font-bold text-base sm:text-2xl py-2 sm:py-4 rounded-lg sm:rounded-xl shadow-lg transition-all mt-2 sm:mt-3 shrink-0 bg-gray-300 text-gray-500 cursor-not-allowed">
+                        사진을 먼저 올려주세요
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. 퍼즐 플레이 화면 (PLAYING / SOLVED) -->
+            <div id="screen-play" class="hidden-screen w-full h-full flex flex-col items-center justify-center p-2 sm:p-4 bg-gray-900/5 gap-2 sm:gap-4 min-h-0">
+                
+                <!-- 조작 방법 안내 -->
+                <div id="play-hint" class="bg-sky-500 text-white px-3 sm:px-6 py-1 sm:py-2 rounded-full font-bold text-xs sm:text-xl animate-bounce shadow-md shrink-0 text-center">
+                    💡 두 개의 조각을 차례대로 터치(클릭)해서 자리를 바꿔보세요!
+                </div>
+                
+                <!-- 완성 감상 안내 -->
+                <div id="solved-hint" class="hidden-screen bg-green-500 text-white px-3 sm:px-6 py-1 sm:py-2 rounded-full font-bold text-xs sm:text-xl shadow-md shrink-0 animate-pulse text-center">
+                    🎉 퍼즐 완성! 10초 동안 멋진 그림을 감상해 보세요!
+                </div>
+
+                <!-- 퍼즐 보드 -->
+                <div class="flex-1 w-full min-h-0 flex items-center justify-center overflow-hidden p-1 sm:p-2">
+                    <div id="puzzle-board" class="rounded-lg sm:rounded-xl overflow-hidden shadow-2xl bg-gray-300 grid border-[3px] sm:border-4 border-white mx-auto transition-all">
+                        <!-- JS로 동적 생성됨 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 성공 화면 (폭죽) -->
+            <div id="screen-success" class="hidden-screen absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
+                <canvas id="fireworks-canvas" class="absolute inset-0" style="z-index: 0;"></canvas>
+                <div class="bg-white p-10 rounded-3xl shadow-2xl text-center transform scale-110 flex flex-col items-center z-10">
+                    <span class="text-7xl mb-4">🌟</span>
+                    <h2 class="text-5xl font-extrabold text-green-500 mb-6">참 잘했어요!</h2>
+                    <p class="text-2xl text-gray-600 mb-8">퍼즐을 모두 맞췄습니다!</p>
+                    <button onclick="goHome()" class="bg-sky-500 hover:bg-sky-600 text-white font-bold text-2xl py-4 px-10 rounded-2xl shadow-md transition-transform hover:scale-105">
+                        다시 하기
+                    </button>
+                </div>
+            </div>
+
+            <!-- 4. 시간 초과 화면 (GAMEOVER) -->
+            <div id="screen-gameover" class="hidden-screen absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+                <div class="bg-white p-10 rounded-3xl shadow-2xl text-center flex flex-col items-center">
+                    <span class="text-7xl mb-4">⏰</span>
+                    <h2 class="text-5xl font-extrabold text-orange-500 mb-6">시간이 다 되었어요!</h2>
+                    <p class="text-2xl text-gray-600 mb-8">아쉽지만 다시 한 번 도전해볼까요?</p>
+                    <div class="flex gap-4">
+                        <button onclick="startGame()" class="bg-green-500 hover:bg-green-600 text-white font-bold text-2xl py-4 px-8 rounded-2xl shadow-md transition-transform hover:scale-105">
+                            다시 도전
+                        </button>
+                        <button onclick="goHome()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold text-2xl py-4 px-8 rounded-2xl shadow-md transition-transform hover:scale-105">
+                            처음으로
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        // --- 설정 옵션 상수 ---
+        const GRID_OPTIONS = [
+            { label: '9조각 (3x3)', value: 3 },
+            { label: '16조각 (4x4)', value: 4 },
+            { label: '25조각 (5x5)', value: 5 }
+        ];
+
+        const TIME_OPTIONS = [
+            { label: '시간 무제한', value: 0 },
+            { label: '1분', value: 60 },
+            { label: '2분', value: 120 },
+            { label: '3분', value: 180 }
+        ];
+
+        // --- 앱 상태 변수 ---
+        let gameState = 'MENU'; // 'MENU', 'PLAYING', 'SOLVED', 'SUCCESS', 'GAMEOVER'
+        let slots = [null, null, null, null]; // 4개의 빈 사진 슬롯
+        let selectedImage = null;
+        let gridSize = 3;
+        let timeLimit = 0;
+        
+        let timeRemaining = 0;
+        let pieces = [];
+        let selectedIndex = null;
+        
+        let timerInterval = null;
+        let successTimeout = null;
+        let fireworksAnimationId = null;
+
+        // --- DOM 엘리먼트 ---
+        const screens = {
+            MENU: document.getElementById('screen-menu'),
+            PLAYING: document.getElementById('screen-play'), // SOLVED도 같이 사용
+            SUCCESS: document.getElementById('screen-success'),
+            GAMEOVER: document.getElementById('screen-gameover')
+        };
+        
+        const headerControls = document.getElementById('header-controls');
+        const timerDisplay = document.getElementById('timer-display');
+        const playHint = document.getElementById('play-hint');
+        const solvedHint = document.getElementById('solved-hint');
+        
+        const slotContainer = document.getElementById('slot-container');
+        const gridOptionsContainer = document.getElementById('grid-options');
+        const timeOptionsContainer = document.getElementById('time-options');
+        const startBtn = document.getElementById('start-btn');
+        const puzzleBoard = document.getElementById('puzzle-board');
+
+        // --- 초기화 ---
+        function init() {
+            renderMenuUI();
+            updateScreen();
+        }
+
+        // --- 화면 업데이트 렌더링 로직 ---
+        function updateScreen() {
+            // 모든 스크린 숨기기
+            Object.values(screens).forEach(screen => screen.classList.add('hidden-screen'));
+            
+            // 현재 상태에 맞는 스크린 보이기
+            if (gameState === 'MENU') {
+                screens.MENU.classList.remove('hidden-screen');
+                headerControls.classList.add('hidden-screen');
+            } else if (gameState === 'PLAYING' || gameState === 'SOLVED') {
+                screens.PLAYING.classList.remove('hidden-screen');
+                headerControls.classList.remove('hidden-screen');
+                
+                if (timeLimit > 0) {
+                    timerDisplay.classList.remove('hidden-screen');
+                } else {
+                    timerDisplay.classList.add('hidden-screen');
+                }
+
+                if (gameState === 'SOLVED') {
+                    playHint.classList.add('hidden-screen');
+                    solvedHint.classList.remove('hidden-screen');
+                } else {
+                    playHint.classList.remove('hidden-screen');
+                    solvedHint.classList.add('hidden-screen');
+                }
+            } else if (gameState === 'SUCCESS') {
+                screens.PLAYING.classList.remove('hidden-screen'); // 배경용
+                screens.SUCCESS.classList.remove('hidden-screen');
+                startFireworks();
+            } else if (gameState === 'GAMEOVER') {
+                screens.PLAYING.classList.remove('hidden-screen'); // 배경용
+                screens.GAMEOVER.classList.remove('hidden-screen');
+            }
+        }
+
+        function renderMenuUI() {
+            // 1. 슬롯 렌더링
+            slotContainer.innerHTML = '';
+            slots.forEach((slot, index) => {
+                const div = document.createElement('div');
+                
+                if (slot) {
+                    // 사진이 업로드된 슬롯
+                    const isSelected = selectedImage === slot;
+                    const borderClass = isSelected ? 'border-sky-500 scale-[1.02] shadow-lg z-10' : 'border-transparent hover:scale-[1.02] hover:shadow';
+                    
+                    div.className = `relative rounded-xl overflow-hidden border-4 transition-all flex items-center justify-center bg-black/5 ${borderClass}`;
+                    // 사진 비율에 맞춰 슬롯 틀도 반응
+                    div.style.aspectRatio = slot.ratio;
+                    div.innerHTML = `
+                        <button onclick="selectImage(${index})" class="absolute inset-0 w-full h-full flex items-center justify-center">
+                            <img src="${slot.url}" alt="업로드된 사진 ${index + 1}" class="w-full h-full object-cover" />
+                        </button>
+                        <label class="absolute top-1.5 right-1.5 bg-white/90 hover:bg-white p-2 rounded-full cursor-pointer shadow-md transition-transform hover:scale-110 z-20" title="다른 사진으로 변경">
+                            <input type="file" accept="image/*" class="hidden" onchange="handleSlotUpload(event, ${index})" />
+                            <span class="text-sm leading-none block">🔄</span>
+                        </label>
+                    `;
+                } else {
+                    // 비어있는 슬롯
+                    div.className = "relative rounded-xl overflow-hidden border-4 border-dashed border-sky-300 cursor-pointer flex flex-col items-center justify-center transition-all bg-sky-50 hover:bg-sky-100 aspect-video";
+                    div.innerHTML = `
+                        <label class="absolute inset-0 flex flex-col items-center justify-center cursor-pointer">
+                            <input type="file" accept="image/*" class="hidden" onchange="handleSlotUpload(event, ${index})" />
+                            <span class="text-3xl sm:text-5xl mb-1 sm:mb-2">📸</span>
+                            <span class="font-bold text-sky-700 text-sm sm:text-lg">내 사진 올리기</span>
+                        </label>
+                    `;
+                }
+                slotContainer.appendChild(div);
+            });
+
+            // 2. 그리드 옵션 렌더링
+            gridOptionsContainer.innerHTML = '';
+            GRID_OPTIONS.forEach(opt => {
+                const isSelected = gridSize === opt.value;
+                const activeClass = isSelected ? 'bg-sky-500 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200';
+                
+                const btn = document.createElement('button');
+                btn.className = `py-1.5 sm:py-3 rounded-md sm:rounded-lg font-bold text-[10px] sm:text-base transition-all ${activeClass}`;
+                btn.textContent = opt.label;
+                btn.onclick = () => { gridSize = opt.value; renderMenuUI(); };
+                gridOptionsContainer.appendChild(btn);
+            });
+
+            // 3. 시간 옵션 렌더링
+            timeOptionsContainer.innerHTML = '';
+            TIME_OPTIONS.forEach(opt => {
+                const isSelected = timeLimit === opt.value;
+                const activeClass = isSelected ? 'bg-orange-400 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200';
+                
+                const btn = document.createElement('button');
+                btn.className = `py-1.5 sm:py-3 rounded-md sm:rounded-lg font-bold text-[10px] sm:text-sm transition-all tracking-tight ${activeClass}`;
+                btn.textContent = opt.label;
+                btn.onclick = () => { timeLimit = opt.value; renderMenuUI(); };
+                timeOptionsContainer.appendChild(btn);
+            });
+
+            // 4. 시작 버튼 활성화 상태
+            if (selectedImage) {
+                startBtn.disabled = false;
+                startBtn.className = "w-full font-bold text-base sm:text-2xl py-2 sm:py-4 rounded-lg sm:rounded-xl shadow-lg transition-all mt-2 sm:mt-3 shrink-0 bg-green-500 hover:bg-green-600 text-white transform hover:scale-[1.02]";
+                startBtn.textContent = "퍼즐 시작! 🚀";
+            } else {
+                startBtn.disabled = true;
+                startBtn.className = "w-full font-bold text-base sm:text-2xl py-2 sm:py-4 rounded-lg sm:rounded-xl shadow-lg transition-all mt-2 sm:mt-3 shrink-0 bg-gray-300 text-gray-500 cursor-not-allowed";
+                startBtn.textContent = "사진을 먼저 올려주세요";
+            }
+        }
+
+        function selectImage(index) {
+            selectedImage = slots[index];
+            renderMenuUI();
+        }
+
+        function handleSlotUpload(event, index) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        // 이미지의 가로/세로 비율을 계산
+                        const ratio = img.naturalWidth / img.naturalHeight;
+                        slots[index] = { url: e.target.result, ratio: ratio };
+                        selectedImage = slots[index];
+                        renderMenuUI();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function startGame() {
+            if (!selectedImage) return;
+
+            const totalPieces = gridSize * gridSize;
+            pieces = [];
+            
+            for (let i = 0; i < totalPieces; i++) {
+                pieces.push({
+                    id: i,
+                    correctRow: Math.floor(i / gridSize),
+                    correctCol: i % gridSize
+                });
+            }
+
+            // Fisher-Yates shuffle
+            for (let i = pieces.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [pieces[i], pieces[j]] = [pieces[j], pieces[i]];
+            }
+
+            timeRemaining = timeLimit;
+            selectedIndex = null;
+            gameState = 'PLAYING';
+            
+            stopTimer();
+            if (timeLimit > 0) startTimer();
+            
+            stopFireworks();
+            clearTimeout(successTimeout);
+
+            updateScreen();
+            renderBoard();
+        }
+
+        function handlePieceClick(index) {
+            if (gameState !== 'PLAYING') return;
+
+            if (selectedIndex === null) {
+                selectedIndex = index;
+                renderBoard();
+            } else {
+                if (selectedIndex !== index) {
+                    // 스왑
+                    [pieces[selectedIndex], pieces[index]] = [pieces[index], pieces[selectedIndex]];
+                    selectedIndex = null;
+                    renderBoard();
+                    checkWinCondition();
+                } else {
+                    selectedIndex = null;
+                    renderBoard();
+                }
+            }
+        }
+
+        function checkWinCondition() {
+            const isWin = pieces.every((piece, index) => piece.id === index);
+            if (isWin) {
+                gameState = 'SOLVED';
+                stopTimer();
+                updateScreen(); // 안내 문구 변경
+                renderBoard(); // 클릭 방지 렌더링
+                
+                // 10초 대기 후 폭죽 화면으로
+                successTimeout = setTimeout(() => {
+                    gameState = 'SUCCESS';
+                    updateScreen();
+                }, 10000);
+            }
+        }
+
+        function renderBoard() {
+            puzzleBoard.innerHTML = '';
+            puzzleBoard.style.gridTemplateColumns = `repeat(${gridSize}, minmax(0, 1fr))`;
+            puzzleBoard.style.gridTemplateRows = `repeat(${gridSize}, minmax(0, 1fr))`;
+
+            resizePuzzleBoard(); // 화면 비율에 맞춰 보드 크기 조정
+
+            pieces.forEach((piece, index) => {
+                const bgSize = `${gridSize * 100}% ${gridSize * 100}%`;
+                const bgPosX = gridSize > 1 ? (piece.correctCol / (gridSize - 1)) * 100 : 0;
+                const bgPosY = gridSize > 1 ? (piece.correctRow / (gridSize - 1)) * 100 : 0;
+                
+                const isSelected = selectedIndex === index;
+                const borderClass = isSelected ? 'z-10 scale-95 ring-4 ring-orange-500 rounded-lg shadow-xl' : '';
+                
+                const div = document.createElement('div');
+                div.className = `relative cursor-pointer transition-transform duration-200 border border-white/30 hover:brightness-110 ${borderClass}`;
+                div.style.backgroundImage = `url("${selectedImage.url}")`;
+                div.style.backgroundSize = bgSize;
+                div.style.backgroundPosition = `${bgPosX}% ${bgPosY}%`;
+                
+                // 접근성을 위한 하이라이트
+                const highlight = document.createElement('div');
+                highlight.className = "absolute inset-0 shadow-[inset_0_0_10px_rgba(0,0,0,0.2)] pointer-events-none";
+                div.appendChild(highlight);
+                
+                div.onclick = () => handlePieceClick(index);
+                puzzleBoard.appendChild(div);
+            });
+        }
+
+        function resizePuzzleBoard() {
+            if (!selectedImage) return;
+            const container = puzzleBoard.parentElement;
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+            const containerRatio = containerWidth / containerHeight;
+            
+            puzzleBoard.style.aspectRatio = selectedImage.ratio;
+            
+            // 컨테이너 비율과 이미지 비율을 비교하여 최대 크기 설정
+            if (selectedImage.ratio > containerRatio) {
+                // 이미지가 가로로 더 넓은 경우
+                puzzleBoard.style.width = '100%';
+                puzzleBoard.style.height = 'auto';
+            } else {
+                // 이미지가 세로로 더 긴 경우
+                puzzleBoard.style.width = 'auto';
+                puzzleBoard.style.height = '100%';
+            }
+        }
+
+        function startTimer() {
+            updateTimerUI();
+            timerInterval = setInterval(() => {
+                timeRemaining--;
+                updateTimerUI();
+                
+                if (timeRemaining <= 0) {
+                    stopTimer();
+                    gameState = 'GAMEOVER';
+                    updateScreen();
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function updateTimerUI() {
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = (timeRemaining % 60).toString().padStart(2, '0');
+            timerDisplay.textContent = `⏳ ${minutes}:${seconds}`;
+            
+            if (timeRemaining <= 10 && gameState === 'PLAYING') {
+                timerDisplay.classList.add('text-red-300', 'animate-pulse');
+            } else {
+                timerDisplay.classList.remove('text-red-300', 'animate-pulse');
+            }
+        }
+
+        function goHome() {
+            stopTimer();
+            clearTimeout(successTimeout);
+            stopFireworks();
+            gameState = 'MENU';
+            updateScreen();
+        }
+
+        // --- 폭죽 애니메이션 로직 ---
+        const canvas = document.getElementById('fireworks-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        
+        function resizeCanvas() {
+            if (!canvas.parentElement) return;
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '255, 255, 255';
+        }
+
+        function createFirework(x, y) {
+            const colors = ['#FF5733', '#FFC300', '#DAF7A6', '#33FF57', '#33C1FF', '#C133FF', '#FF33A8'];
+            const particleCount = 60;
+            for (let i = 0; i < particleCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 5 + 2;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: Math.random() * 4 + 2,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    alpha: 1,
+                    decay: Math.random() * 0.015 + 0.015
+                });
+            }
+        }
+
+        function startFireworks() {
+            resizeCanvas();
+            particles = [];
+            
+            // 초기 폭죽 3개
+            createFirework(canvas.width * 0.2, canvas.height * 0.4);
+            createFirework(canvas.width * 0.5, canvas.height * 0.3);
+            createFirework(canvas.width * 0.8, canvas.height * 0.4);
+            
+            function animate() {
+                fireworksAnimationId = requestAnimationFrame(animate);
+                
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                if (Math.random() < 0.03) {
+                    createFirework(Math.random() * canvas.width, Math.random() * canvas.height * 0.5);
+                }
+
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.vy += 0.05; // 중력
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.alpha -= p.decay;
+
+                    if (p.alpha <= 0) {
+                        particles.splice(i, 1);
+                        continue;
+                    }
+
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${hexToRgb(p.color)}, ${p.alpha})`;
+                    ctx.fill();
+                }
+            }
+            animate();
+        }
+
+        function stopFireworks() {
+            if (fireworksAnimationId) {
+                cancelAnimationFrame(fireworksAnimationId);
+                fireworksAnimationId = null;
+            }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // 통합 리사이즈 핸들러
+        function handleResize() {
+            resizeCanvas();
+            if (gameState === 'PLAYING' || gameState === 'SOLVED') {
+                resizePuzzleBoard();
+            }
+        }
+
+        // 실행
+        window.onload = () => {
+            init();
+            window.addEventListener('resize', handleResize);
+        };
+    </script>
+</body>
+</html>
